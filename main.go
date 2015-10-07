@@ -7,6 +7,8 @@ import (
 	"html/template"
 	"path/filepath"
 	"flag"
+	"trace"
+	"os"
 )
 
 func main() {
@@ -14,7 +16,8 @@ func main() {
 	flag.Parse()
 
 	r := newRoom()
-	http.Handle("/", &templateHandler{ filename: "chat.html" })
+	r.tracer = trace.New(os.Stdout)
+	http.Handle("/chat", MustAuth(&templateHandler{ filename: "chat.html" }))
 	http.Handle("/room", r)
 	go r.run()
 
