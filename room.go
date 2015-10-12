@@ -3,7 +3,8 @@ import (
 	"github.com/gorilla/websocket"
 	"net/http"
 	"log"
-	"trace"
+	"github.com/ktship/trace"
+	"github.com/stretchr/objx"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 )
 
 type room struct {
-	forward chan []byte
+	forward chan *message
 	join chan *client
 	leave chan *client
 	clients map[*client]bool
@@ -21,7 +22,7 @@ type room struct {
 
 func newRoom() *room {
 	return &room {
-		forward:	make(chan []byte),
+		forward:	make(chan *message),
 		join:		make(chan *client),
 		leave:		make(chan *client),
 		clients:	make(map[*client]bool),
@@ -44,7 +45,7 @@ func (r *room) run() {
 				select {
 				case client.send <- msg:
 					// send msg
-					r.tracer.Trace(" -- 클라이언트로 보냄")
+					r.tracer.Trace(" -- 클라이언트 받음 : ", msg.Message)
 				default:
 					delete(r.clients, client)
 					close(client.send)
@@ -66,11 +67,20 @@ func (r *room) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Fatal("ServerHTTP:", err)
 		return
 	}
-	client := &client{
-		socket: socket,
-		send: make(chan []byte, messageBufferSize),
-		room: r,
+
+	authCookie, err := req.Cookie("auth")
+	if err != nil {
+		log.Fatal("Failed to get auth cookie:", err)
+		return
 	}
+
+	client := &client{
+		socket: 	socket,
+		send: 		make(chan *message, messageBufferSize),
+		room: 		r,
+		userData:	objx.MustFromBase64(authCookie.Value),
+	}
+
 	r.join <- client
 	defer func() { r.leave <- client }()
 	go client.write()

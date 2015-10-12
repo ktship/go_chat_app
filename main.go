@@ -7,12 +7,13 @@ import (
 	"html/template"
 	"path/filepath"
 	"flag"
-	"trace"
+	"github.com/ktship/trace"
 	"os"
 //	"github.com/stretchr/gomniauth/providers/facebook"
 //	"github.com/stretchr/gomniauth/providers/github"
 	"github.com/stretchr/gomniauth/providers/google"
 	"github.com/stretchr/gomniauth"
+	"github.com/stretchr/objx"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	r.tracer = trace.New(os.Stdout)
 	http.Handle("/chat", MustAuth(&templateHandler{ filename: "chat.html" }))
 	http.Handle("/login", &templateHandler{ filename: "login.html" })
-	http.Handle("/auth/", loginHandler)
+	http.HandleFunc("/auth/", loginHandler)
 	http.Handle("/room", r)
 	go r.run()
 
@@ -50,5 +51,11 @@ func (t *templateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	t.once.Do(func() {
 		t.templ = template.Must(template.ParseFiles(filepath.Join("templates\\", t.filename)))
 	})
-	t.templ.Execute(w, r)
+	data := map[string]interface{} {
+		"Host": r.Host,
+	}
+	if authCookie, err := r.Cookie("auth"); err == nil {
+		data["UserData"] = objx.MustFromBase64(authCookie.Value)
+	}
+	t.templ.Execute(w, data)
 }
